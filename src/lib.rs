@@ -8,11 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![feature(core)]
-
 extern crate libc;
-
-use std::num::wrapping::Wrapping as w;
 
 #[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))]
 mod imp {
@@ -59,7 +55,7 @@ pub fn precise_time_ns() -> u64 {
             libc::QueryPerformanceCounter(&mut ticks)
         }, 1);
 
-        return (w(ticks as u64) * w(1000000000)).0 / (ticks_per_s as u64);
+        return (1000000000 / (ticks_per_s as u64)) * (ticks as u64);
     }
 
     #[cfg(any(target_os = "macos", target_os = "ios"))]
