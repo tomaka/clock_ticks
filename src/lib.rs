@@ -23,16 +23,51 @@ mod imp {
     extern {
         pub fn clock_gettime(clk_id: c_int, tp: *mut timespec) -> c_int;
     }
+
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod imp {
     use libc::{timeval, timezone, c_int, mach_timebase_info};
+    use std::sync::{Once, ONCE_INIT};
 
     extern {
         pub fn gettimeofday(tp: *mut timeval, tzp: *mut timezone) -> c_int;
         pub fn mach_absolute_time() -> u64;
         pub fn mach_timebase_info(info: *mut mach_timebase_info) -> c_int;
+    }
+
+    pub fn info() -> &'static mach_timebase_info {
+        static mut INFO: mach_timebase_info = mach_timebase_info {
+            numer: 0,
+            denom: 0,
+        };
+        static ONCE: Once = ONCE_INIT;
+
+        unsafe {
+            ONCE.call_once(|| {
+                mach_timebase_info(&mut INFO);
+            });
+            &INFO
+        }
+    }
+}
+
+#[cfg(windows)]
+mod imp {
+    use libc;
+    use std::sync::{Once, ONCE_INIT};
+
+    pub fn frequency() -> libc::LARGE_INTEGER {
+        static mut FREQUENCY: libc::LARGE_INTEGER = 0;
+        static ONCE: Once = ONCE_INIT;
+
+        unsafe {
+            ONCE.call_once(|| {
+                libc::QueryPerformanceFrequency(&mut FREQUENCY);
+            });
+            FREQUENCY
+        }
     }
 }
 
@@ -45,30 +80,20 @@ pub fn precise_time_ns() -> u64 {
 
     #[cfg(windows)]
     fn os_precise_time_ns() -> u64 {
-        let mut ticks_per_s = 0;
-        assert_eq!(unsafe {
-            libc::QueryPerformanceFrequency(&mut ticks_per_s)
-        }, 1);
-        let ticks_per_s = if ticks_per_s == 0 {1} else {ticks_per_s};
         let mut ticks = 0;
         assert_eq!(unsafe {
             libc::QueryPerformanceCounter(&mut ticks)
         }, 1);
 
-        return (1000000000 / (ticks_per_s as u64)) * (ticks as u64);
+        mul_div_i64(ticks as i64, 1000000000, imp::frequency() as i64) as u64
     }
 
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     fn os_precise_time_ns() -> u64 {
-        static mut TIMEBASE: libc::mach_timebase_info = libc::mach_timebase_info { numer: 0,
-                                                                                   denom: 0 };
-        static ONCE: std::sync::Once = std::sync::ONCE_INIT;
         unsafe {
-            ONCE.call_once(|| {
-                imp::mach_timebase_info(&mut TIMEBASE);
-            });
             let time = imp::mach_absolute_time();
-            time * TIMEBASE.numer as u64 / TIMEBASE.denom as u64
+            let info = imp::info();
+            time * info.numer as u64 / info.denom as u64
         }
     }
 
@@ -82,6 +107,7 @@ pub fn precise_time_ns() -> u64 {
     }
 }
 
+
 /**
  * Returns the current value of a high-resolution performance counter
  * in seconds since an unspecified epoch.
@@ -90,27 +116,15 @@ pub fn precise_time_s() -> f64 {
     return (precise_time_ns() as f64) / 1000000000.;
 }
 
-#[cfg(test)]
-mod tests {
-    extern crate test;
-    use super::{precise_time_ns, precise_time_s};
-    use self::test::Bencher;
-
-    #[test]
-    fn test_precise_time() {
-        let s0 = precise_time_s();
-        assert!(s0 > 0.);
-
-        let ns0 = precise_time_ns();
-        let ns1 = precise_time_ns();
-        assert!(ns1 >= ns0);
-
-        let ns2 = precise_time_ns();
-        assert!(ns2 >= ns1);
-    }
-
-    #[bench]
-    fn bench_precise_time_ns(b: &mut Bencher) {
-        b.iter(|| precise_time_ns())
-    }
+// Computes (value*numer)/denom without overflow, as long as both
+// (numer*denom) and the overall result fit into i64 (which is the case
+// for our time conversions).
+#[allow(dead_code)]
+fn mul_div_i64(value: i64, numer: i64, denom: i64) -> i64 {
+    let q = value / denom;
+    let r = value % denom;
+    // Decompose value as (value/denom*denom + value%denom),
+    // substitute into (value*numer)/denom and simplify.
+    // r < denom, so (denom*numer) is the upper bound of (r*numer)
+    q * numer + r * numer / denom
 }
