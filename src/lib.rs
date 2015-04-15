@@ -116,6 +116,14 @@ pub fn precise_time_s() -> f64 {
     return (precise_time_ns() as f64) / 1000000000.;
 }
 
+/**
+ * Returns the current value of a high-resolution performance counter
+ * in milliseconds since an unspecified epoch.
+ */
+pub fn precise_time_ms() -> u64 {
+    return precise_time_ns() / 1000;
+}
+
 // Computes (value*numer)/denom without overflow, as long as both
 // (numer*denom) and the overall result fit into i64 (which is the case
 // for our time conversions).
