@@ -2,5 +2,5 @@
 Deprecated
 ----------
 
-Use `std::time` instead.
+Use the [`time`](https://crates.io/crates/time) crate instead.
 
