@@ -1,1 +1,6 @@
-Replacement for `rust-lang/time` that doesn't require compiling C code.
+
+Deprecated
+----------
+
+Use `std::time` instead.
+
