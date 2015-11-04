@@ -28,17 +28,17 @@ mod imp {
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod imp {
-    use libc::{timeval, timezone, c_int, mach_timebase_info};
+    use libc::{timeval, timezone, c_int, mach_timebase_info as timebase_info};
     use std::sync::{Once, ONCE_INIT};
 
     extern {
         pub fn gettimeofday(tp: *mut timeval, tzp: *mut timezone) -> c_int;
         pub fn mach_absolute_time() -> u64;
-        pub fn mach_timebase_info(info: *mut mach_timebase_info) -> c_int;
+        pub fn mach_timebase_info(info: *mut timebase_info) -> c_int;
     }
 
-    pub fn info() -> &'static mach_timebase_info {
-        static mut INFO: mach_timebase_info = mach_timebase_info {
+    pub fn info() -> &'static timebase_info {
+        static mut INFO: timebase_info = timebase_info {
             numer: 0,
             denom: 0,
         };
