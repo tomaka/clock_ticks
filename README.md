@@ -2,5 +2,5 @@
 Deprecated
 ----------
 
-Use the [`time`](https://crates.io/crates/time) crate instead.
+Use [`std::time`](https://doc.rust-lang.org/std/time) instead.
 
